@@ -346,79 +346,89 @@ async function playSong(guild, song) {
     return;
   }
 
-  try {
-    const resource = createAudioResource(ytdl(song.url, {
-      filter: 'audioonly',
-      quality: 'highestaudio',
-      highWaterMark: 1 << 25,
-      dlChunkSize: 0,
-    }));
+  const maxAttempts = 3; // Maximum number of retry attempts
+  let attempts = 0;
 
-    serverQueue.player.play(resource);
-    serverQueue.connection.subscribe(serverQueue.player);
-    serverQueue.playing = true;
+  while (attempts < maxAttempts) {
+    try {
+      const resource = createAudioResource(ytdl(song.url, {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+        highWaterMark: 1 << 25,
+        dlChunkSize: 0,
+      }));
 
-    serverQueue.player.once(AudioPlayerStatus.Idle, () => {
-      cleanupListeners(serverQueue.player);
-      serverQueue.songs.shift();
-      if (serverQueue.songs.length > 0) {
-        playSong(guild, serverQueue.songs[0]);
-      } else {
-        serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
-        serverQueue.connection.destroy();
-        queue.delete(guild.id);
-      }
-    });
+      serverQueue.player.play(resource);
+      serverQueue.connection.subscribe(serverQueue.player);
+      serverQueue.playing = true;
 
-    serverQueue.player.once('error', error => {
-      cleanupListeners(serverQueue.player);
-      console.error('Error:', error.message);
-      serverQueue.textChannel.send({ embeds: [createEmbed(`Error: ${error.message}. Skipping to the next song.`, 'error')] });
-      serverQueue.songs.shift();
-      if (serverQueue.songs.length > 0) {
-        playSong(guild, serverQueue.songs[0]);
-      } else {
-        serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
-        serverQueue.connection.destroy();
-        queue.delete(guild.id);
-      }
-    });
-
-    resource.playStream.once('readable', () => {
-      let description = 'Now playing:';
-      if (serverQueue.songs.length > 1) {
-        description += `\n\n**Next up:**\n1. ${serverQueue.songs[1].title}`;
-        if (serverQueue.songs.length > 2) {
-          description += `\n2. ${serverQueue.songs[2].title}`;
+      serverQueue.player.once(AudioPlayerStatus.Idle, () => {
+        cleanupListeners(serverQueue.player);
+        serverQueue.songs.shift();
+        if (serverQueue.songs.length > 0) {
+          playSong(guild, serverQueue.songs[0]);
+        } else {
+          serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
+          serverQueue.connection.destroy();
+          queue.delete(guild.id);
         }
-      }
-      const embed = createEmbed(description, 'info', song.title, song.albumCover);
-      serverQueue.textChannel.send({ embeds: [embed] });
-    });
+      });
 
-    console.log(`\nStarted playing: ${song.title} \n${song.url}\n`);
-  } catch (error) {
-    if (error.message.includes('Status code: 403')) {
-      console.error(`Error: Status code: 403 for ${song.title}`);
-      serverQueue.textChannel.send({ embeds: [createEmbed(`Error: Status code 403 for **${song.title}**. Skipping to the next song.`, 'error')] });
-      serverQueue.songs.shift();
-      if (serverQueue.songs.length > 0) {
-        playSong(guild, serverQueue.songs[0]);
+      serverQueue.player.once('error', error => {
+        cleanupListeners(serverQueue.player);
+        console.error('Error:', error.message);
+        serverQueue.textChannel.send({ embeds: [createEmbed(`Error: ${error.message}. Skipping to the next song.`, 'error')] });
+        serverQueue.songs.shift();
+        if (serverQueue.songs.length > 0) {
+          playSong(guild, serverQueue.songs[0]);
+        } else {
+          serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
+          serverQueue.connection.destroy();
+          queue.delete(guild.id);
+        }
+      });
+
+      resource.playStream.once('readable', () => {
+        let description = 'Now playing:';
+        if (serverQueue.songs.length > 1) {
+          description += `\n\n**Next up:**\n1. ${serverQueue.songs[1].title}`;
+          if (serverQueue.songs.length > 2) {
+            description += `\n2. ${serverQueue.songs[2].title}`;
+          }
+        }
+        const embed = createEmbed(description, 'info', song.title, song.albumCover);
+        serverQueue.textChannel.send({ embeds: [embed] });
+      });
+
+      console.log(`Started playing: ${song.url}`);
+      break; // Break out of the loop if successful
+    } catch (error) {
+      attempts++;
+      if (error.message.includes('Status code: 403')) {
+        console.error(`Received 403 Forbidden. Retrying (${attempts}/${maxAttempts})...`);
+        if (attempts >= maxAttempts) {
+          serverQueue.textChannel.send({ embeds: [createEmbed(`Failed to play ${song.title} after ${maxAttempts} attempts. Skipping to the next song.`, 'error')] });
+          serverQueue.songs.shift();
+          if (serverQueue.songs.length > 0) {
+            playSong(guild, serverQueue.songs[0]);
+          } else {
+            serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
+            serverQueue.connection.destroy();
+            queue.delete(guild.id);
+          }
+        }
       } else {
-        serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
-        serverQueue.connection.destroy();
-        queue.delete(guild.id);
-      }
-    } else {
-      console.error('Error:', error.message);
-      serverQueue.textChannel.send({ embeds: [createEmbed(`Error: ${error.message}. Skipping to the next song.`, 'error')] });
-      serverQueue.songs.shift();
-      if (serverQueue.songs.length > 0) {
-        playSong(guild, serverQueue.songs[0]);
-      } else {
-        serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
-        serverQueue.connection.destroy();
-        queue.delete(guild.id);
+        console.error('Error:', error.message);
+        serverQueue.textChannel.send({ embeds: [createEmbed(`Error: ${error.message}. Skipping to the next song.`, 'error')] });
+        serverQueue.songs.shift();
+        if (serverQueue.songs.length > 0) {
+          playSong(guild, serverQueue.songs[0]);
+        } else {
+          serverQueue.textChannel.send({ embeds: [createEmbed('Queue has ended. No more songs to play.', 'info')] });
+          serverQueue.connection.destroy();
+          queue.delete(guild.id);
+        }
+        break; // Break out of the loop if it's not a 403 error
       }
     }
   }
