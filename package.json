@@ -1,0 +1,24 @@
+{
+  "name": "discord_music_bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@discordjs/voice": "^0.17.0",
+    "axios": "^1.7.2",
+    "discord.js": "^14.15.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "libsodium-wrappers": "^0.7.13",
+    "spotify-web-api-node": "^5.0.2",
+    "yt-search": "^2.11.0",
+    "ytdl-core": "^4.11.5"
+  }
+}
