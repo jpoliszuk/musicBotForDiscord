@@ -240,6 +240,12 @@ async function handlePlaylistCommand(interaction, playlistName) {
 async function handlePlayCommand(interaction, songTitle) {
   try {
     await interaction.deferReply();
+
+    const voiceChannel = interaction.member.voice.channel;
+    if (!voiceChannel) {
+      return interaction.editReply({ embeds: [createEmbed('You need to be in a voice channel to play music!', 'error')] });
+    }
+
     const serverQueue = queue.get(interaction.guild.id);
 
     // Search for the song on YouTube and fetch album cover from Spotify
@@ -268,7 +274,7 @@ async function handlePlayCommand(interaction, songTitle) {
 
         try {
           const connection = joinVoiceChannel({
-            channelId: interaction.member.voice.channel.id,
+            channelId: voiceChannel.id,
             guildId: interaction.guild.id,
             adapterCreator: interaction.guild.voiceAdapterCreator,
           });
