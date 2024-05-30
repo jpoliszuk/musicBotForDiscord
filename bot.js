@@ -400,7 +400,7 @@ async function playSong(guild, song) {
         serverQueue.textChannel.send({ embeds: [embed] });
       });
 
-      console.log(`Started playing: ${song.url}`);
+      console.log(`\nStarted playing: ${song.title} \n${song.url}\n`);
       break; // Break out of the loop if successful
     } catch (error) {
       attempts++;
